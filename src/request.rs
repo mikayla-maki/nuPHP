@@ -1,15 +1,29 @@
+use std::path::Path;
+
 use crate::ServerError;
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct Request<'a> {
     protocol: HttpProtocol,
     method: HttpMethod,
-    path: ServerPath<'a>,
+    request_path: ServerPath<'a>,
 }
 
 impl<'a> Request<'a> {
     pub fn protocol(&self) -> HttpProtocol {
         self.protocol
+    }
+
+    pub fn path(&self) -> &Path {
+        Path::new(self.request_path.path)
+    }
+
+    pub fn method(&self) -> HttpMethod {
+        self.method
+    }
+
+    pub fn query_params(&self) -> &[(&str, &str)] {
+        &self.request_path.params
     }
 }
 
@@ -26,7 +40,7 @@ impl<'a> TryFrom<&'a str> for Request<'a> {
         Ok(Request {
             protocol: protocol.try_into()?,
             method: method.try_into()?,
-            path: path.try_into()?,
+            request_path: path.try_into()?,
         })
     }
 }
@@ -53,8 +67,11 @@ impl TryFrom<&str> for HttpProtocol {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
-pub struct ServerPath<'a>(&'a str);
+#[derive(Clone, Debug)]
+pub struct ServerPath<'a> {
+    path: &'a str,
+    params: Vec<(&'a str, &'a str)>,
+}
 
 impl<'a> TryFrom<&'a str> for ServerPath<'a> {
     type Error = ServerError;
@@ -64,7 +81,25 @@ impl<'a> TryFrom<&'a str> for ServerPath<'a> {
             return Err(ServerError::BadRequest);
         }
 
-        Ok(ServerPath(path))
+        let (path, params) = path
+            .split_once("?")
+            .map(|(path, params)| {
+                (
+                    path,
+                    params
+                        .split("&")
+                        .map(|param| param.split_once("=").unwrap_or((param, "")))
+                        .collect::<Vec<_>>(),
+                )
+            })
+            .unwrap_or_else(|| (path, vec![]));
+
+        let path = match path.trim_start_matches("/") {
+            "" => "index.nu",
+            path => path,
+        };
+
+        Ok(ServerPath { path, params })
     }
 }
 
