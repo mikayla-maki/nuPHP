@@ -31,16 +31,16 @@ impl<'a> TryFrom<&'a str> for Request<'a> {
     type Error = ServerError;
 
     fn try_from(request_line: &'a str) -> Result<Self, Self::Error> {
-        let (method, rest) = request_line
-            .split_once(" ")
-            .ok_or(ServerError::BadRequest)?;
+        let (method, rest) = dbg!(request_line.split_once(" ")).ok_or(ServerError::BadRequest)?;
 
-        let (path, protocol) = rest.split_once(" ").ok_or(ServerError::BadRequest)?;
+        let (path, protocol) = dbg!(rest.split_once(" ")).ok_or(ServerError::BadRequest)?;
+
+        let request_path: ServerPath = dbg!(path.try_into())?;
 
         Ok(Request {
-            protocol: protocol.try_into()?,
-            method: method.try_into()?,
-            request_path: path.try_into()?,
+            protocol: dbg!(dbg!(protocol).try_into())?,
+            method: dbg!(dbg!(method).try_into())?,
+            request_path,
         })
     }
 }
@@ -57,7 +57,7 @@ impl TryFrom<&str> for HttpProtocol {
     type Error = ServerError;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        match value.to_uppercase().as_str() {
+        match value.to_uppercase().trim() {
             "HTTP/0.9" => Ok(HttpProtocol::Http0_9),
             "HTTP/1.0" => Ok(HttpProtocol::Http1_0),
             "HTTP/1.1" => Ok(HttpProtocol::Http1_1),

@@ -3,7 +3,7 @@ use std::fmt::Display;
 #[derive(Clone, Debug)]
 pub struct Response {
     pub headers: Option<Vec<(String, String)>>,
-    pub body: String,
+    pub body: Vec<u8>,
 }
 
 #[derive(Clone, Debug)]
@@ -19,7 +19,7 @@ impl<'a, 'b> Display for NuRecord<'a, 'b> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{{")?;
         for (key, val) in self.0 {
-            writeln!(f, "{}: {}", key, val)?;
+            writeln!(f, "\"{}\": \"{}\"", key, val)?;
         }
         write!(f, "}}")
     }
