@@ -8,3 +8,8 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.75"
 thiserror = "1.0.48"
+hyper = { version = "0.14", features = ["full"] }
+tokio = { version = "1", features = ["full"] }
+futures = "0.3"
+tokio-util = "0.7.8"
+url = "2.4.1"
