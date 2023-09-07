@@ -16,6 +16,5 @@ Some notes on how it all fits together:
 
 Some cool observations:
 
-- You can easily create sub paths by creating a file with a name (`users.nu`) and the subpath in a folder with the same name (`users/details.nu`).
 - You can test the nu page scripts by running them directly with the `$env.GET` and `$env.POST` variables set, no complex mocking required!
 - Since nu is table based, you can mostly just use normal nu code to interface with the database.
