@@ -6,7 +6,7 @@ index "Mikayla"
 def index [name] {
     print ("<html>
               <head>
-                <script src="https://unpkg.com/htmx.org@1.9.5"></script>
+                <script src='https://unpkg.com/htmx.org@1.9.5'></script>
               </head>
               <body>")
 
@@ -25,7 +25,7 @@ def index [name] {
     print "<h2>Comments:</h2>"
 
     print ($"
-    <form hx-post='/comments' hx-target='.comments' hx-swap='beforebegin' hx-on::after-request='this.reset()'>
+    <form hx-post='/comments' hx-target='.comments' hx-swap='beforebegin' hx-on::after-request='this.reset\(\)'>
         Make a new comment: <br/>
         <input name='comment' value='' placeholder='comment'>
         <input name='username' value='' placeholder='username'>
@@ -33,9 +33,9 @@ def index [name] {
     </form>
     ")
 
-    print <div class="comments">
+    print "<div class='comments'>"
     source comments.nu
-    print </div>
+    print "</div>"
 
     print "</body></html>"
 }
