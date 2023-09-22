@@ -1,18 +1,19 @@
 mod parsing;
 
 use std::{
-    collections::HashMap,
     net::SocketAddr,
     ops::Deref,
     path::Path,
     pin::Pin,
     process::{Command, Stdio},
-    sync::{Arc, Mutex},
+    sync::Arc,
 };
 
+use dashmap::DashMap;
 use futures::Future;
-use http::HeaderValue;
-use parsing::{nu_record, NuPhpRequest, ServerPath};
+use http::{HeaderName, HeaderValue};
+use parsing::{nu_map, nu_record, NuPhpRequest, ServerPath};
+use rand::{thread_rng, Rng};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -38,36 +39,28 @@ async fn main() {
 
     println!("Test site available at: http://{}", addr);
 
-    let session_map = Arc::new(Mutex::new(HashMap::new()));
-    let session_id_counter = Arc::new(Mutex::new(0));
+    let session_map = Arc::new(DashMap::new());
 
     let make_svc = make_service_fn(|_conn| {
         let session_map = session_map.clone();
-        let session_id_counter = session_id_counter.clone();
-        async {
-            // service_fn converts our function into a `Service`
-            Ok::<_, ServerError>(service_fn(nu_php(session_map, session_id_counter)))
-        }
+        async { Ok::<_, ServerError>(service_fn(nu_php(session_map))) }
     });
 
     let server = Server::bind(&addr).serve(make_svc);
 
-    // Run this server for... forever!
     if let Err(e) = server.await {
         eprintln!("server error: {}", e);
     }
 }
 
 fn nu_php(
-    session_map: Arc<Mutex<HashMap<u64, String>>>,
-    session_counter: Arc<Mutex<u64>>,
+    session_map: Arc<DashMap<u64, String>>,
 ) -> impl Fn(
     Request<Body>,
 ) -> Pin<Box<dyn Future<Output = Result<Response<Body>, ServerError>> + Send>>
        + Send {
     move |mut request: Request<Body>| {
         let session_map = session_map.clone();
-        let session_counter = session_counter.clone();
         Box::pin(async move {
             let request_path = request.uri().path().to_owned();
             let path: ServerPath = request_path
@@ -78,11 +71,11 @@ fn nu_php(
             println!("[{}] {:?}", request.method(), path.deref());
 
             let extension = path.extension();
-            let session_data = get_session_data(&request, session_map);
+            let session_data = get_session_data(&request, &session_map);
 
             if extension.is_none() || extension.unwrap() == "nu" {
                 let nu_request = NuPhpRequest::from(&mut request).await?;
-                dispatch_nu_file(&path, &nu_request, session_data, session_counter)
+                dispatch_nu_file(&path, &nu_request, session_data, &session_map)
             } else {
                 if let Ok(file) = File::open(Path::new("./site/public/").join(path.deref())).await {
                     let stream = FramedRead::new(file, BytesCodec::new());
@@ -98,9 +91,9 @@ fn nu_php(
 
 fn get_session_data(
     request: &Request<Body>,
-    session_map: Arc<Mutex<HashMap<u64, String>>>,
-) -> Option<String> {
-    let session_data = request
+    session_map: &DashMap<u64, String>,
+) -> Option<(String, u64)> {
+    request
         .headers()
         .get("cookie")
         .and_then(|value| value.to_str().ok())
@@ -120,15 +113,14 @@ fn get_session_data(
         })
         .and_then(|value| value.parse::<u64>().ok())
         .and_then(|key| {
-            session_map.lock().ok().and_then(|mut map| {
-                Some(
-                    map.entry(key)
-                        .or_insert_with(|| "{}".to_string())
-                        .to_owned(),
-                )
-            })
-        });
-    session_data
+            Some((
+                session_map
+                    .entry(key)
+                    .or_insert_with(|| "{}".to_string())
+                    .to_owned(),
+                key,
+            ))
+        })
 }
 
 fn not_found() -> Response<Body> {
@@ -141,14 +133,16 @@ fn not_found() -> Response<Body> {
 fn dispatch_nu_file(
     path: &ServerPath,
     request: &NuPhpRequest,
-    session_data: Option<String>,
-    session_counter: Arc<Mutex<u64>>,
+    session_data: Option<(String, u64)>,
+    session_map: &DashMap<u64, String>,
 ) -> Result<Response<Body>, ServerError> {
     let path = if path.extension().is_none() {
         Path::new("./site/public/").join(path.with_extension("nu"))
     } else {
         Path::new("./site/public/").join(path.deref())
     };
+
+    let (session_data, key) = session_data.unzip();
 
     Command::new("nu")
         .arg("-c")
@@ -161,34 +155,85 @@ fn dispatch_nu_file(
                 $env.REQ_HEADERS = {}
                 $env.RES_HEADERS = {{}}
                 $env.SESSION = {}
+
+                # TODO:
+                $env.FILES = {{}}
+                $env.COOKIES = {{}}
             }}
-            source nuphp.nu
+            source $PATH
+
+            print "{{{{{{{{{{{{HEADERS}}}}}}}}}}}}"
+            for $it in ($env.RES_HEADERS | transpose key value) {{
+                print $"($it.key): ($it.value)"
+            }}
+
+            print "{{{{{{{{{{{{SESSION}}}}}}}}}}}}"
+            print ($env.SESSION | to json -r)
             "#,
             path.display(),
             nu_record(request.query_params.iter()),
             nu_record(request.post_body.iter()),
-            nu_record(request.headers.iter()),
-            session_data.as_deref().unwrap_or_else(|| "{}"),
+            nu_map(request.headers.iter()),
+            session_data
+                .as_deref()
+                .map(|data| data.trim())
+                .unwrap_or_else(|| "{}"),
         ))
         .stderr(Stdio::inherit())
         .output()
         .map_err(|_| ServerError::InternalServerError)
         .and_then(|output| {
-            if output.status.success() {
-                let mut response = Response::new(Body::from(output.stdout));
-                if session_data.is_none() {
-                    let mut cookie = session_counter
-                        .lock()
-                        .map_err(|_| ServerError::InternalServerError)?;
-                    *cookie += 1;
+            let output_stdout =
+                String::from_utf8(output.stdout).map_err(|_| ServerError::InternalServerError)?;
+            let (body, headers_and_session) = output_stdout
+                .split_once("{{{{{{HEADERS}}}}}}")
+                .expect("we should have added this in the inline script above");
+            let (headers, session) = headers_and_session
+                .split_once("{{{{{{SESSION}}}}}}")
+                .expect("we should have added this in the inline script above");
 
-                    response.headers_mut().insert(
-                        // GENERATE: Set-Cookie: <cookie-name>=<cookie-value>; HttpOnly;
-                        "Set-Cookie",
-                        HeaderValue::from_str(&format!("{}={}; HttpOnly;", NU_PHP_COOKIE, cookie))
-                            .unwrap(),
-                    );
+            if output.status.success() {
+                let mut response = Response::new(Body::from(body.to_string()));
+                let response_headers = response.headers_mut();
+                for header in headers.lines() {
+                    if header.is_empty() {
+                        continue;
+                    }
+
+                    let (header, value) = header
+                        .split_once(":")
+                        .expect("nuphp.nu should have added this");
+
+                    (|| -> Result<(), ServerError> {
+                        response_headers.insert(
+                            HeaderName::from_bytes(header.as_bytes())
+                                .map_err(|_| ServerError::InternalServerError)?,
+                            HeaderValue::from_str(value)
+                                .map_err(|_| ServerError::InternalServerError)?,
+                        );
+                        Ok(())
+                    })()
+                    .ok();
                 }
+
+                let key = if let Some(key) = key {
+                    key
+                } else {
+                    let key = thread_rng().gen::<u64>();
+
+                    response.headers_mut().append(
+                        http::header::SET_COOKIE,
+                        HeaderValue::from_str(&format!(
+                            "{}={}; HttpOnly; SameSite;",
+                            NU_PHP_COOKIE, key
+                        ))
+                        .map_err(|_| ServerError::InternalServerError)?,
+                    );
+
+                    key
+                };
+
+                session_map.insert(key, session.to_string());
 
                 Ok(response)
             } else {

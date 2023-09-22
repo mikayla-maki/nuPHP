@@ -15,3 +15,4 @@ tokio-util = "0.7.8"
 url = "2.4.1"
 dashmap = "5.5.3"
 http =  "0.2.9"
+rand = { version = "0.8.5", features = ["getrandom"] }

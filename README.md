@@ -21,7 +21,11 @@ Some cool observations:
 
 TODO:
 - [x] Add cookies for identifying sessions
-- [ ] Optimize concurrency for session and session identifier
-- [ ] Implement session and header parsing via nuphp.nu script
+- [x] Optimize concurrency for session and session identifier
+- [x] Implement session and header parsing via nuphp.nu script
+- [ ] Figure out a way to do file uploads
+- [ ] Add a testing harness
+- [ ] Add a $COOKIE output variable
+- [ ] Add defunctionalized closure passing by serialzing the closure's enviroment to a file
 - [ ] file bug about highlighting for $env.REQUEST_PATH
 - [ ] File highlight bug about # with nothing following it

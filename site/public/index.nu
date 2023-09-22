@@ -4,6 +4,8 @@ print -e "SESSION:" $env.SESSION
 
 index "Mikayla"
 
+$env.SESSION.name = $"Mikayla (date now)"
+
 def index [name] {
     print ("<html>
               <head>
@@ -16,6 +18,12 @@ def index [name] {
     } else {
         print ($"<h1>Hello, ($name)</h1>")
     }
+
+    print ($"<h2>SESSION: </h2> <pre>")
+    for $it in ($env.SESSION | transpose key value) {
+        print ($"($it.key): ($it.value)")
+    }
+    print ($"</pre>")
 
     print ($"<h2>Headers: </h2> <pre>")
     for $it in ($env.REQ_HEADERS | transpose key value) {

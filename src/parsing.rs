@@ -1,4 +1,4 @@
-use std::{ops::Deref, path::Path};
+use std::{collections::HashMap, ops::Deref, path::Path};
 
 use hyper::{body::HttpBody, Body, Request};
 use url::form_urlencoded;
@@ -63,10 +63,50 @@ pub fn nu_record<'a, 'b>(
     record
 }
 
+pub fn nu_map<'a>(i: impl Iterator<Item = (&'a String, &'a Vec<String>)>) -> String {
+    let mut record = String::from("{");
+    for (key, val) in i {
+        record.push_str(&format!(
+            "\"{}\": {},",
+            key,
+            nu_list(val.iter().map(|val| val.as_ref()))
+        ));
+    }
+    record.push_str("}");
+    record
+}
+
+pub fn nu_list<'a>(i: impl Iterator<Item = &'a str>) -> String {
+    let mut record = String::new();
+    let mut i = i.peekable();
+    let first = i.next();
+    if let Some(first) = first {
+        if i.peek().is_none() {
+            record.push_str("\"");
+            record.push_str(first);
+            record.push_str("\"");
+        } else {
+            record.push_str("[\"");
+            record.push_str(first);
+            record.push_str("\",");
+            for val in i {
+                record.push_str("\"");
+                record.push_str(val);
+                record.push_str("\",");
+            }
+            record.push_str("]");
+        }
+    } else {
+        record.push_str("\"\"");
+    }
+
+    record
+}
+
 pub struct NuPhpRequest<'a> {
     pub post_body: Vec<(String, String)>,
     pub query_params: Vec<(&'a str, &'a str)>,
-    pub headers: Vec<(&'a str, &'a str)>,
+    pub headers: HashMap<String, Vec<String>>,
 }
 
 impl<'a> NuPhpRequest<'a> {
@@ -90,11 +130,17 @@ impl<'a> NuPhpRequest<'a> {
             .map(parse_query_params)
             .unwrap_or(vec![]);
 
-        let headers = request
-            .headers()
-            .iter()
-            .map(|(key, value)| (key.as_str(), value.to_str().unwrap()))
-            .collect::<Vec<_>>();
+        let mut headers = HashMap::<String, Vec<String>>::new();
+        for (key, value) in request.headers().iter() {
+            if let Ok(value) = value.to_str() {
+                headers
+                    .entry(key.to_string())
+                    .or_default()
+                    .push(value.to_string())
+            } else {
+                continue;
+            }
+        }
 
         Ok(NuPhpRequest {
             post_body,
