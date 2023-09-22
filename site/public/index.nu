@@ -1,5 +1,6 @@
 print -e "GET:" $env.GET
 print -e "POST:" $env.POST
+print -e "SESSION:" $env.SESSION
 
 index "Mikayla"
 
@@ -17,7 +18,7 @@ def index [name] {
     }
 
     print ($"<h2>Headers: </h2> <pre>")
-    for $it in ($env.HEADERS | transpose key value) {
+    for $it in ($env.REQ_HEADERS | transpose key value) {
         print ($"($it.key): ($it.value)")
     }
     print ($"</pre>")

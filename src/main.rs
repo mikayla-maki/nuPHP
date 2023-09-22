@@ -154,19 +154,21 @@ fn dispatch_nu_file(
         .arg("-c")
         .arg(format!(
             r#"
+            const PATH = "{}"
             export-env {{
                 $env.GET = {}
                 $env.POST = {}
-                $env.HEADERS = {}
+                $env.REQ_HEADERS = {}
+                $env.RES_HEADERS = {{}}
                 $env.SESSION = {}
             }}
-            source {}
+            source nuphp.nu
             "#,
+            path.display(),
             nu_record(request.query_params.iter()),
             nu_record(request.post_body.iter()),
             nu_record(request.headers.iter()),
             session_data.as_deref().unwrap_or_else(|| "{}"),
-            path.display()
         ))
         .stderr(Stdio::inherit())
         .output()

@@ -18,3 +18,10 @@ Some cool observations:
 
 - You can test the nu page scripts by running them directly with the `$env.GET` and `$env.POST` variables set, no complex mocking required!
 - Since nu is table based, you can mostly just use normal nu code to interface with the database.
+
+TODO:
+- [x] Add cookies for identifying sessions
+- [ ] Optimize concurrency for session and session identifier
+- [ ] Implement session and header parsing via nuphp.nu script
+- [ ] file bug about highlighting for $env.REQUEST_PATH
+- [ ] File highlight bug about # with nothing following it
