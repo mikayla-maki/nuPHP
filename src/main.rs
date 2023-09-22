@@ -12,7 +12,7 @@ use std::{
 use dashmap::DashMap;
 use futures::Future;
 use http::{HeaderName, HeaderValue};
-use parsing::{nu_map, nu_record, NuPhpRequest, ServerPath};
+use parsing::{nu_headers, nu_map, NuPhpRequest, ServerPath};
 use rand::{thread_rng, Rng};
 use thiserror::Error;
 
@@ -59,12 +59,12 @@ fn nu_php(
     Request<Body>,
 ) -> Pin<Box<dyn Future<Output = Result<Response<Body>, ServerError>> + Send>>
        + Send {
-    move |mut request: Request<Body>| {
+    move |request: Request<Body>| {
         let session_map = session_map.clone();
         Box::pin(async move {
-            let request_path = request.uri().path().to_owned();
-            let path: ServerPath = request_path
-                .as_str()
+            let path: ServerPath = request
+                .uri()
+                .path()
                 .try_into()
                 .map_err(|_| ServerError::BadRequest)?;
 
@@ -74,10 +74,11 @@ fn nu_php(
             let session_data = get_session_data(&request, &session_map);
 
             if extension.is_none() || extension.unwrap() == "nu" {
-                let nu_request = NuPhpRequest::from(&mut request).await?;
-                dispatch_nu_file(&path, &nu_request, session_data, &session_map)
+                build_and_dispatch_nu_request(&path, request, session_data, &session_map).await
             } else {
-                if let Ok(file) = File::open(Path::new("./site/public/").join(path.deref())).await {
+                if let Ok(file) =
+                    File::open(Path::new("./site/public/").join(path.deref().deref())).await
+                {
                     let stream = FramedRead::new(file, BytesCodec::new());
                     let body = Body::wrap_stream(stream);
                     return Ok(Response::new(body));
@@ -87,6 +88,21 @@ fn nu_php(
             }
         })
     }
+}
+
+async fn build_and_dispatch_nu_request(
+    path: &ServerPath,
+    mut request: Request<Body>,
+    session_data: Option<(String, u64)>,
+    session_map: &DashMap<u64, String>,
+) -> Result<Response<Body>, ServerError> {
+    let full_body = hyper::body::to_bytes(request.body_mut())
+        .await
+        .map_err(|_| ServerError::InternalServerError)?;
+
+    let nu_request = NuPhpRequest::parse_url_encoded(&full_body, &mut request)?;
+
+    dispatch_nu_file(&path, nu_request, session_data, &session_map)
 }
 
 fn get_session_data(
@@ -132,7 +148,7 @@ fn not_found() -> Response<Body> {
 
 fn dispatch_nu_file(
     path: &ServerPath,
-    request: &NuPhpRequest,
+    request: NuPhpRequest,
     session_data: Option<(String, u64)>,
     session_map: &DashMap<u64, String>,
 ) -> Result<Response<Body>, ServerError> {
@@ -171,9 +187,9 @@ fn dispatch_nu_file(
             print ($env.SESSION | to json -r)
             "#,
             path.display(),
-            nu_record(request.query_params.iter()),
-            nu_record(request.post_body.iter()),
-            nu_map(request.headers.iter()),
+            nu_map(request.query_params.into_iter()),
+            nu_map(request.post_body.into_iter()),
+            nu_headers(request.headers),
             session_data
                 .as_deref()
                 .map(|data| data.trim())
