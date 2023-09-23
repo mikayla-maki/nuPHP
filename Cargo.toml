@@ -16,3 +16,5 @@ url = "2.4.1"
 dashmap = "5.5.3"
 http =  "0.2.9"
 rand = { version = "0.8.5", features = ["getrandom"] }
+multer = "2.1.0"
+tempfile = "3.8.0"

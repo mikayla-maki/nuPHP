@@ -1,6 +1,8 @@
 print -e "GET:" $env.GET
 print -e "POST:" $env.POST
 print -e "SESSION:" $env.SESSION
+print -e "FILES:" $env.FILES
+
 
 index "Mikayla"
 
@@ -19,6 +21,14 @@ def index [name] {
         print ($"<h1>Hello, ($name)</h1>")
     }
 
+    print ($"<h2>Files: </h2> <pre>")
+    for $it in ($env.FILES | transpose key value) {
+        print -n ($"($it.key) - ($it.value):")
+        open $it.value | print
+    }
+    print ($"</pre>")
+
+
     print ($"<h2>SESSION: </h2> <pre>")
     for $it in ($env.SESSION | transpose key value) {
         print ($"($it.key): ($it.value)")
@@ -33,11 +43,13 @@ def index [name] {
 
     print "<h2>Comments:</h2>"
 
+    # hx-post='/comments' hx-target='.comments' hx-swap='beforebegin' hx-on::after-request='this.reset\(\)
     print ($"
-    <form hx-post='/comments' hx-target='.comments' hx-swap='beforebegin' hx-on::after-request='this.reset\(\)'>
+        <form enctype='multipart/form-data' action='/' method='post'>
         Make a new comment: <br/>
         <input name='comment' value='' placeholder='comment'>
         <input name='username' value='' placeholder='username'>
+        <input name='file' value='' type='file' placeholder='username'>
         <input type='submit' value='Submit'>
     </form>
     ")

@@ -23,7 +23,7 @@ TODO:
 - [x] Add cookies for identifying sessions
 - [x] Optimize concurrency for session and session identifier
 - [x] Implement session and header parsing via nuphp.nu script
-- [ ] Figure out a way to do file uploads
+- [x] Figure out a way to do file uploads
 - [ ] Add a testing harness
 - [ ] Add a $COOKIE output variable
 - [ ] Add defunctionalized closure passing by serialzing the closure's enviroment to a file
