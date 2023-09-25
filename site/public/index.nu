@@ -7,6 +7,8 @@ print -e "FILES:" $env.FILES
 index "Mikayla"
 
 $env.SESSION.name = $"Mikayla (date now)"
+let formatted_date = (date now | into string | str replace " " "-" --all)
+$env.RES_HEADERS."Set-Cookie" = $"nu-cookie-nu-headr=($formatted_date)"
 
 def index [name] {
     print ("<html>

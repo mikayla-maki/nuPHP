@@ -24,8 +24,6 @@ TODO:
 - [x] Optimize concurrency for session and session identifier
 - [x] Implement session and header parsing via nuphp.nu script
 - [x] Figure out a way to do file uploads
-- [ ] Add a testing harness
-- [ ] Add a $COOKIE output variable
-- [ ] Add defunctionalized closure passing by serialzing the closure's enviroment to a file
+- [ ] Add a $COOKIE input/output variable
 - [ ] file bug about highlighting for $env.REQUEST_PATH
 - [ ] File highlight bug about # with nothing following it

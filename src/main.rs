@@ -298,18 +298,17 @@ fn dispatch_nu_file(
                     }
 
                     let (header, value) = header
-                        .split_once(":")
+                        .split_once(": ")
                         .expect("nuphp.nu should have added this");
 
-                    (|| -> Result<(), ServerError> {
+                    (|| -> Result<(), String> {
                         response_headers.insert(
-                            HeaderName::from_bytes(header.as_bytes())
-                                .map_err(|_| ServerError::InternalServerError)?,
-                            HeaderValue::from_str(value)
-                                .map_err(|_| ServerError::InternalServerError)?,
+                            HeaderName::from_bytes(header.as_bytes()).map_err(|e| e.to_string())?,
+                            HeaderValue::from_str(value).map_err(|e| e.to_string())?,
                         );
                         Ok(())
                     })()
+                    .map_err(|e| eprintln!("Error sending headers: {}", e))
                     .ok();
                 }
 
