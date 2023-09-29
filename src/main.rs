@@ -135,7 +135,6 @@ async fn build_and_dispatch_nu_request(
 
                     let name = name.to_string();
                     let file_name = field.file_name().map(|file_name| file_name.to_string());
-                    println!("Name: {:?}, File Name: {:?}", name, file_name);
 
                     if let Some(file_name) = file_name {
                         let mut file =
